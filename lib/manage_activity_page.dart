@@ -4,7 +4,6 @@ import 'package:azurloc/models/activity_model.dart';
 import 'package:azurloc/services/category_service.dart';
 import 'package:azurloc/services/activity_service.dart';
 import 'package:intl/intl.dart';
-
 import 'activity_detail_page.dart';
 // Importez vos modèles et services ici
 
@@ -430,8 +429,7 @@ class _ActivityListPageState extends State<ActivityListPage> {
                     leading: Image.network(
                       activity.image,
                       errorBuilder: (context, error, stackTrace) {
-                        // Ici, vous pouvez retourner l'image par défaut
-                        return Image.asset('chemin/vers/votre/image/par/defaut.png', width: 50, height: 50);
+                        return Image.asset('', width: 50, height: 50);
                       },
                     ),
                     title: Text(activity.title),

@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -12,10 +11,7 @@ class AuthService {
   final _backendUrl = 'https://azurloc-back.onrender.com';
 
   AuthService() {
-    // Conditionner l'ajout de CookieManager à Dio
-    if (!kIsWeb) {
       dio.interceptors.add(CookieManager(cookieJar)); // Ajouter CookieManager à Dio uniquement pour les plateformes mobiles et desktop
-    }
   }
 
   Future<String> login(String username, String password) async {
@@ -101,14 +97,25 @@ class AuthService {
           '$_backendUrl/refresh',
           options: Options(
             headers: {
-              'Authorization': 'Bearer $jwt',
+              'Cookie': 'jwt=$jwt',
             },
           ),
         );
-
-        if (response.statusCode == 200) {
+        if ( response.statusCode == 200) {
           final accessToken = response.data['accessToken'];
-          await _storage.write(key: 'jwt', value: accessToken);
+          List<Cookie> cookies = await cookieJar.loadForRequest(
+              Uri.parse('$_backendUrl/refresh'));
+          // Recherche du cookie JWT
+
+          var jwtCookie = cookies.firstWhere((cookie) => cookie.name == 'jwt',
+              orElse: () => Cookie('jwt', ''));
+          if (jwtCookie.value != '') {
+            await _storage.delete(key: 'jwt');
+            await _storage.write(key: 'jwt', value: jwtCookie.value);
+          } else {
+            return 'Erreur lors de la connexion au serveur: JWT non trouvé';
+          }
+
           return accessToken;
         } else {
           return '';
@@ -116,6 +123,7 @@ class AuthService {
       } on DioError catch (e) {
         final code = e.response?.statusCode;
         final message = e.response?.data['message'];
+        print("Erreur $code: $message");
         return 'Error $code: $message';
       } catch (e) {
         if (kDebugMode) {
