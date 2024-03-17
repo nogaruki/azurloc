@@ -5,349 +5,296 @@ import 'package:azurloc/services/user_service.dart';
 import 'package:azurloc/services/auth_service.dart';
 import 'package:intl/intl.dart';
 
+import 'login_page.dart';
 import 'models/user_model.dart'; // Assurez-vous que le chemin vers votre modèle User est correct
 
-class UserProfilePage extends StatefulWidget {
-  const UserProfilePage({super.key});
+class ProfilPage extends StatefulWidget {
+  const ProfilPage({super.key});
 
   @override
-  _UserProfilePageState createState() => _UserProfilePageState();
+  _ProfilPageState createState() => _ProfilPageState();
 }
 
-class _UserProfilePageState extends State<UserProfilePage> {
-  final _formKey = GlobalKey<FormState>();
-  bool _isEditing = false;
-  final _userService = UserService();
-  final AuthService _authService = AuthService();
-  final List<History> _history = [];
-
-  late TextEditingController _firstnameController;
-  late TextEditingController _lastnameController;
-  late TextEditingController _usernameController;
-  late TextEditingController _emailController;
-  late TextEditingController _cityController;
-  late TextEditingController _addressController;
+class _ProfilPageState extends State<ProfilPage> {
   late User _user;
+  late List<History> _histories = [];
+  bool _isLoading = true;
+  bool _isAdmin = false;
+  final UserService _userService = UserService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
-    _firstnameController = TextEditingController();
-    _lastnameController = TextEditingController();
-    _usernameController = TextEditingController();
-    _emailController = TextEditingController();
-    _cityController = TextEditingController();
-    _addressController = TextEditingController();
-    _userService.getInfo().then((user) {
-      if(user != null) {
-        setState(() {
-          _user = user;
-          _firstnameController.text = _user.firstname;
-          _lastnameController.text = _user.lastname;
-          _usernameController.text = _user.username;
-          _emailController.text = _user.email;
-          _cityController.text = _user.city;
-          _addressController.text = _user.address;
-        });
-
-      }
-      _userService.getHistory().then((value) {
-        setState(() {
-          _history.addAll(value);
-        });
-      });
-    });
+    _fetchData();
   }
 
-  @override
-  void dispose() {
-    _firstnameController.dispose();
-    _lastnameController.dispose();
-    _usernameController.dispose();
-    _emailController.dispose();
-    _cityController.dispose();
-    _addressController.dispose();
-    super.dispose();
+  void _fetchData() async {
+    _user = await _userService.getInfo();
+    _isAdmin = _user.roles.keys.contains('Admin') ? true : false;
+    _histories = await _userService.getHistory();
+    setState(() => _isLoading = false);
   }
+  void _showEditProfileDialog() {
+    TextEditingController lastnameController = TextEditingController(text: _user.lastname);
+    TextEditingController firstnameController = TextEditingController(text: _user.firstname);
+    TextEditingController emailController = TextEditingController(text: _user.email);
+    TextEditingController cityController = TextEditingController(text: _user.city);
+    TextEditingController addressController = TextEditingController(text: _user.address);
 
-  void _toggleEditMode() {
-    setState(() {
-      _isEditing = !_isEditing;
-    });
-  }
+    final formKey = GlobalKey<FormState>();
+    showDialog(
+      context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Modifier votre profile"),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextFormField(
+                    controller: lastnameController,
+                    decoration: const InputDecoration(labelText: "Nom"),
+                    validator: (value) => value == null || value.isEmpty ? "Ce champ est obligatoire" : null,
+                  ),
+                  TextFormField(
+                    controller: firstnameController,
+                    decoration: const InputDecoration(labelText: "Prénom"),
+                    validator: (value) => value == null || value.isEmpty ? "Ce champ est obligatoire" : null,
+                  ),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(labelText: "Email"),
+                    validator: (value) => value == null || value.isEmpty ? "Ce champ est obligatoire" : null,
+                  ),
+                  TextFormField(
+                    controller: cityController,
+                    decoration: const InputDecoration(labelText: "Ville"),
+                    validator: (value) => value == null || value.isEmpty ? "Ce champ est obligatoire" : null,
+                  ),
+                  TextFormField(
+                    controller: addressController,
+                    decoration: const InputDecoration(labelText: "Adresse"),
+                    validator: (value) => value == null || value.isEmpty ? "Ce champ est obligatoire" : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Enregistrer'),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  formKey.currentState!.save();
+                  User updatedUser = User(
+                    id: _user.id,
+                    lastname: lastnameController.text,
+                    firstname: firstnameController.text,
+                    username: _user.username,
+                    email: emailController.text,
+                    password: _user.password,
+                    city: cityController.text,
+                    address: addressController.text,
+                    emailVerified: _user.emailVerified,
+                    verificationToken: _user.verificationToken,
+                    expireToken: _user.expireToken,
+                    refreshToken: _user.refreshToken,
+                    roles: _user.roles,
+                    cart: _user.cart,
+                    createdAt: _user.createdAt,
+                    updatedAt: _user.updatedAt,
+                  );
 
-  void _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+                  bool success = await _userService.edit(updatedUser);
+                  if (success) {
+                    setState(() {
+                      _user = updatedUser;
+                    });
+                  }
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ],
+        ),
+    );
 
-      bool updateSuccess = await _userService.edit(_user);
-      if (updateSuccess) {
-        setState(() {
-          _isEditing = false;
-          _firstnameController.text = _user.firstname;
-          _lastnameController.text = _user.lastname;
-          _emailController.text = _user.email;
-          _cityController.text = _user.city;
-          _addressController.text = _user.address;
-        });
-      } else {
-        print("Échec de la mise à jour de l'utilisateur.");
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        actions: <Widget>[
-          if (_isEditing)
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: _saveProfile,
-            ),
-          FutureBuilder<User?>(
-            future: _userService.getInfo(), 
-            builder: (context, snapshot) {
-              if (snapshot.hasData && snapshot.data != null) {
-                return IconButton(
-                  icon: Icon(_isEditing ? Icons.cancel : Icons.edit),
-                  onPressed: _toggleEditMode,
-                );
-              } else {
-                // Retourne un Container vide si aucune donnée utilisateur n'est chargée ou si les données sont nulles
-                return Container();
-              }
-            },
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: _showEditProfileDialog,
           ),
         ],
+        title: const Text('Profil'),
       ),
-      body: FutureBuilder<User?>(
-        future: _userService.getInfo(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return const Center(child: Text('Erreur de chargement'));
-          } else if (snapshot.data != null) {
-            User user = snapshot.data!;
-            // Ici, user est non-null.
-            return SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Form(
-                      key: _formKey,
-                      child: buildUserProfileForm(user),
-                    ),
-                    buildHistorySection(), // Ajoutez cette ligne pour afficher l'historique de commande
-                  ],
-                ),
-              ),
-            );
-          } else {
-            // Cas où user est null
-            return const Center(child: Text('Aucune donnée utilisateur disponible'));
-          }
-        },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildUserInfo(),
+              const SizedBox(height: 20),
+              _buildActions(),
+              const SizedBox(height: 20),
+              _buildOrderHistory(),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget buildUserProfileForm(User user) {
+  Widget _buildUserInfo() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: _firstnameController,
-                decoration: const InputDecoration(labelText: 'Prénom'),
-                readOnly: !_isEditing,
-                onChanged: (value) {
-                  _firstnameController.text = value;
-                },
-              ),
+              child: Text('Nom:\n ${_user.lastname}', style: const TextStyle(fontSize: 16)),
             ),
-            const SizedBox(width: 10), // Espacement entre les champs
             Expanded(
-              child: TextFormField(
-                controller: _firstnameController,
-                decoration: const InputDecoration(labelText: 'Nom'),
-                readOnly: !_isEditing,
-                onChanged: (value) {
-                  _lastnameController.text = value;
-                },
-              ),
+              child: Text('Prénom:\n ${_user.firstname}', style: const TextStyle(fontSize: 16)),
             ),
           ],
         ),
+        const SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: 'Username'),
-                readOnly: true, // Le username est souvent en lecture seule
-              ),
+              child: Text('Username:\n ${_user.username}', style: const TextStyle(fontSize: 16)),
             ),
-            const SizedBox(width: 10), // Espacement entre les champs
             Expanded(
-              child: TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-                readOnly: !_isEditing,
-                onChanged: (value) {
-                  _emailController.text = value;
-                },
-              ),
+              child: Text('Email:\n ${_user.email}', style: const TextStyle(fontSize: 16)),
             ),
           ],
         ),
+        const SizedBox(height: 10),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: _cityController,
-                decoration: const InputDecoration(labelText: 'Ville'),
-                readOnly: !_isEditing,
-                onChanged: (value) {
-                  _cityController.text = value;
-                },
-              ),
+              child: Text('Adresse:\n ${_user.address}', style: const TextStyle(fontSize: 16)),
             ),
-            const SizedBox(width: 10), // Espacement entre les champs
             Expanded(
-              child: TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(labelText: 'Adresse'),
-                readOnly: !_isEditing,
-                onChanged: (value) {
-                  _addressController.text = value;
-                },
-              ),
+              child: Text('Ville:\n ${_user.city}', style: const TextStyle(fontSize: 16)),
             ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16.0),
-          child: Center( // Centre le bouton horizontalement
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red, // Couleur du bouton
-              ),
-              onPressed: () async {
-                final bool result = await _authService.logout(); // Appel à la fonction de déconnexion
-                if (result) {
-                  Navigator.of(context).pushReplacementNamed('/'); // Redirigez vers la page de connexion
-                } else {
-                  const snackBar = SnackBar(content: Text('Échec de la déconnexion.'));
-                  ScaffoldMessenger.of(context).showSnackBar(snackBar);
-                }
+      ],
+    );
+  }
+
+  Widget _buildActions() {
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              _authService.logout();
+              // Naviguez vers la page de connexion
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Déconnexion', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(width: 20),
+          if (_isAdmin)
+            ElevatedButton(
+              onPressed: () {
+                // Naviguez vers la page de gestion
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const GestionPage()));
               },
-              child: const Text('Déconnexion', style: TextStyle(color: Colors.white)),
+              child: const Text('Gestion'),
             ),
-          ),
-        ),
-        if (user.roles.containsKey("Admin"))
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Center( // Centre le bouton horizontalement
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(builder: (context) => const GestionPage()));
-                },
-                child: const Text('Gestion'),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
-  // Ajout de la section Historique de commande
-  Widget buildHistorySection() {
+  Widget _buildOrderHistory() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 20.0),
-          child: Text(
-            'Historique de commande',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+        const Text(
+          'Historique de commande',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        _history.isEmpty
-            ? const Padding(
-          padding: EdgeInsets.symmetric(vertical: 20.0),
-          child: Text('Aucun historique disponible.'),
-        )
-            : ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _history.length,
-          itemBuilder: (context, index) {
-            final historyItem = _history[index];
-            return Card(
-              child: ListTile(
-                title: Text("Commande du ${DateFormat('dd/MM/yyyy').format(historyItem.createdAt)}"),
-                subtitle: Text('${historyItem.activities.length} activités - Total : ${historyItem.total}€'),
-                onTap: () {
-                  _showActivitiesDialog(historyItem);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  void _showActivitiesDialog(History historyItem) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Détail de la commande"),
-          content: SingleChildScrollView(
-            child: Container(
-              // Définissez une hauteur maximale pour le container
-              height: MediaQuery.of(context).size.height * 0.4, // par exemple, 40% de la hauteur de l'écran
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true, // Important pour s'assurer que la ListView prend seulement l'espace nécessaire
-                itemCount: historyItem.activities.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final activity = historyItem.activities[index];
+        SingleChildScrollView(
+          physics: const ScrollPhysics(),
+          child: Column(
+            children: <Widget>[
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _histories.length,
+                itemBuilder: (context, index) {
+                  final order = _histories[index];
                   return ListTile(
-                    title: Text(activity.title),
-                    subtitle: Text('Place: ${activity.place}\nPrix: ${activity.price}€\nDescription: ${activity.description}\n-------------------'),
+                    title: Text("Commande du ${DateFormat('dd/MM/yyyy').format(order.createdAt)}"),
+                    subtitle: Text('${order.activities.length} activités - Total : ${order.total}€'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      onPressed: () {
+                        _showOrderDetails(order);
+                      },
+                    ),
                   );
                 },
               ),
-            ),
+            ],
           ),
-          actions: <Widget>[
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Padding(
-                padding: EdgeInsets.only(right: 8.0),
-                child: Text('Total : ${historyItem.total}€', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            TextButton(
-              child: Text("Fermer"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
+        ),
+      ],
     );
   }
 
+  void  _showOrderDetails(History order) {
+    print(order.activities);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Détail de la commande du ${DateFormat('dd/MM/yyyy').format(order.createdAt)}"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text('Total: ${order.total}€', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              const Text('Activités:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Column(
+                children: order.activities.map((activity) {
+                  return ListTile(
+                    leading: Image.network(activity.image),
+                    title: Text(activity.title),
+                    subtitle: Text('${activity.place} - ${activity.price}€'),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),// Ajoutez les détails de la commande ici
+        ),
+      ),
+    );
+
+  }
 
 }

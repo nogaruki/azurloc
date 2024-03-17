@@ -15,11 +15,26 @@ class UserService {
   final AuthService _authService = AuthService();
   final CategoryService _categoryService = CategoryService();
 
-  Future<User?> getInfo() async {
+  Future<User> getInfo() async {
+    User emptyUser = User(
+      id: '',
+      firstname: '',
+      lastname: '',
+      username: '',
+      email: '',
+      password: '',
+      city: '',
+      address: '',
+      emailVerified: false,
+      refreshToken: [],
+      roles: {},
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
     try {
       final accessToken = await _authService.refresh();
       if (accessToken.isEmpty) {
-        return null;
+        return emptyUser;
       }
       final response = await _dio.get(
         '$_backendUrl/api/user',
@@ -33,13 +48,13 @@ class UserService {
       if (response.statusCode == 200) {
         return User.fromJson(response.data);
       } else {
-        return null;
+        return emptyUser;
       }
     } catch (e) {
       if (kDebugMode) {
         print(e);
       }
-      return null;
+      return emptyUser;
     }
   }
 

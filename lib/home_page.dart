@@ -19,7 +19,7 @@ class _HomePageState extends State<HomePage> {
   static final List<Widget> _widgetOptions = <Widget>[
     const ActivityList(), // Page des activités
     const CartPage(), // Page du panier
-    const UserProfilePage(), // Page du profil
+    const ProfilPage(), // Page du profil
   ];
 
   void _onItemTapped(int index) {
